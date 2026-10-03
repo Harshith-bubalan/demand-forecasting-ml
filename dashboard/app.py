@@ -6,7 +6,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import matplotlib.pyplot as plt
 from pathlib import Path
 
 
@@ -913,53 +912,44 @@ if forecast_button:
         with chart_col:
             history_chart = history.tail(52)
 
-            fig, ax = plt.subplots(figsize=(14, 5.5))
-            fig.patch.set_alpha(0)
-            ax.set_facecolor("#ffffff")
+            # Use Streamlit's native chart instead of matplotlib.
+            # This avoids an extra dependency and works reliably on Streamlit Cloud.
+            historical_part = history_chart[["week", "units_sold"]].copy()
+            historical_part["type"] = "Historical"
 
-            ax.plot(
-                history_chart["week"],
-                history_chart["units_sold"],
-                linewidth=2.4,
-                label="Historical demand"
+            forecast_part = forecast[["week", "predicted_demand"]].copy()
+            forecast_part = forecast_part.rename(
+                columns={"predicted_demand": "units_sold"}
+            )
+            forecast_part["type"] = "Forecast"
+
+            chart_data = pd.concat(
+                [historical_part, forecast_part],
+                ignore_index=True
             )
 
-            ax.plot(
-                forecast["week"],
-                forecast["predicted_demand"],
-                marker="o",
-                markersize=6,
-                linewidth=2.8,
-                label="Forecast"
+            chart_data = chart_data.pivot(
+                index="week",
+                columns="type",
+                values="units_sold"
+            ).sort_index()
+
+            chart_data = chart_data.rename(
+                columns={
+                    "Historical": "Historical Demand",
+                    "Forecast": "Forecast"
+                }
             )
 
-            ax.axvline(
-                history["week"].max(),
-                linestyle="--",
-                linewidth=1.3,
-                alpha=.7,
-                label="Forecast starts"
+            st.line_chart(
+                chart_data,
+                use_container_width=True,
+                height=420
             )
 
-            ax.fill_between(
-                forecast["week"],
-                forecast["predicted_demand"],
-                alpha=.08
+            st.caption(
+                "Historical demand is shown first; forecast values continue from the latest observed week."
             )
-
-            ax.set_xlabel("")
-            ax.set_ylabel("Units sold", fontsize=10)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.spines["left"].set_alpha(.18)
-            ax.spines["bottom"].set_alpha(.18)
-            ax.grid(axis="y", alpha=.16)
-            ax.legend(frameon=False, loc="upper left")
-            fig.autofmt_xdate()
-            plt.tight_layout()
-
-            st.pyplot(fig, use_container_width=True)
-            plt.close(fig)
 
         with insight_col:
             if forecast_change > 5:
